@@ -11,7 +11,22 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-esp_bootloader_esp_idf::esp_app_desc!();
+// ponytail: the esp-bootloader-esp-idf macro lacks #[used] and gets gc'd
+//          at opt-level=s. Manual static with #[used] prevents that.
+#[used]
+#[unsafe(export_name = "esp_app_desc")]
+#[unsafe(link_section = ".rodata_desc.appdesc")]
+pub static ESP_APP_DESC: esp_bootloader_esp_idf::EspAppDesc =
+    esp_bootloader_esp_idf::EspAppDesc::new_internal(
+        env!("CARGO_PKG_VERSION"),
+        env!("CARGO_PKG_NAME"),
+        esp_bootloader_esp_idf::BUILD_TIME,
+        esp_bootloader_esp_idf::BUILD_DATE,
+        esp_bootloader_esp_idf::ESP_IDF_COMPATIBLE_VERSION,
+        0,
+        u16::MAX,
+        esp_bootloader_esp_idf::MMU_PAGE_SIZE,
+    );
 
 #[main]
 fn main() -> ! {
