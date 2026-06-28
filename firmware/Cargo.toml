@@ -18,12 +18,11 @@ esp32c6 = ["esp-hal/esp32c6", "esp-bootloader-esp-idf/esp32c6"]
 esp32s3 = ["esp-hal/esp32s3", "esp-bootloader-esp-idf/esp32s3"]
 
 [dependencies]
-critical-section        = "1.2.0"
 esp-bootloader-esp-idf  = { version = "0.4.0" }
 esp-hal                 = { version = "1.0.0", features = ["unstable"] }
 
 [profile.dev]
-opt-level = "s"                    # debug builds are unbearably slow otherwise
+opt-level = "s"
 
 [profile.release]
 codegen-units    = 1
