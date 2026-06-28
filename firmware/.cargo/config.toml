@@ -1,11 +1,16 @@
 [target.riscv32imac-unknown-none-elf]
-runner    = "espflash flash"
-rustflags = ["-C", "force-frame-pointers"]
+runner = "espflash flash"
+rustflags = [
+  "-C", "force-frame-pointers",
+]
 
 [target.xtensa-esp32s3-none-elf]
-runner    = "espflash flash"
-rustflags = ["-C", "link-arg=-nostartfiles"]
-linker    = "xtensa-esp32s3-elf-gcc"
+runner = "espflash flash"
+rustflags = [
+  "-C", "link-arg=-nostartfiles",
+]
+
+[env]
 
 [unstable]
 build-std = ["core"]

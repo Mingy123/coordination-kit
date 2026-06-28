@@ -1,5 +1,6 @@
 fn main() {
     linker_be_nice();
+    // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
     println!("cargo:rustc-link-arg=-Tlinkall.x");
 }
 
@@ -13,7 +14,9 @@ fn linker_be_nice() {
             "undefined-symbol" => match what.as_str() {
                 "_defmt_timestamp" => {
                     eprintln!();
-                    eprintln!("💡 `defmt` not found — make sure `defmt.x` is added as a linker script and you have included `use defmt_rtt as _;`");
+                    eprintln!(
+                        "💡 `defmt` not found - make sure `defmt.x` is added as a linker script and you have included `use defmt_rtt as _;`"
+                    );
                     eprintln!();
                 }
                 "_stack_start" => {
@@ -23,16 +26,21 @@ fn linker_be_nice() {
                 }
                 "esp_rtos_initialized" | "esp_rtos_yield_task" | "esp_rtos_task_create" => {
                     eprintln!();
-                    eprintln!("💡 `esp-radio` has no scheduler enabled. Make sure you have initialised `esp-rtos` or provided an external scheduler.");
+                    eprintln!(
+                        "💡 `esp-radio` has no scheduler enabled. Make sure you have initialized `esp-rtos` or provided an external scheduler."
+                    );
                     eprintln!();
                 }
                 "embedded_test_linker_file_not_added_to_rustflags" => {
                     eprintln!();
-                    eprintln!("💡 `embedded-test` not found — make sure `embedded-test.x` is added as a linker script for tests");
+                    eprintln!(
+                        "💡 `embedded-test` not found - make sure `embedded-test.x` is added as a linker script for tests"
+                    );
                     eprintln!();
                 }
                 _ => (),
             },
+            // we don't have anything helpful for "missing-lib" yet
             _ => {
                 std::process::exit(1);
             }
