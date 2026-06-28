@@ -1,0 +1,25 @@
+.hermes/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Rust
+target/
+**/*.rs.bk
+
+# Binary artifacts
+*.bin
+*.elf
+*.hex
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
