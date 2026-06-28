@@ -1,3 +1,35 @@
-[workspace]
-resolver = "2"
-members = ["esp32c6", "esp32s3"]
+[package]
+edition      = "2024"
+name         = "coordination-kit-firmware"
+rust-version = "1.88"
+version      = "0.1.0"
+default-run  = "blink-c6"
+
+[[bin]]
+name = "blink-c6"
+path = "src/bin/blink_c6.rs"
+
+[[bin]]
+name = "blink-s3"
+path = "src/bin/blink_s3.rs"
+
+[features]
+esp32c6 = ["esp-hal/esp32c6", "esp-bootloader-esp-idf/esp32c6"]
+esp32s3 = ["esp-hal/esp32s3", "esp-bootloader-esp-idf/esp32s3"]
+
+[dependencies]
+critical-section        = "1.2.0"
+esp-bootloader-esp-idf  = { version = "0.4.0" }
+esp-hal                 = { version = "1.0.0", features = ["unstable"] }
+
+[profile.dev]
+opt-level = "s"                    # debug builds are unbearably slow otherwise
+
+[profile.release]
+codegen-units    = 1
+debug            = 2
+debug-assertions = false
+incremental      = false
+lto              = "fat"
+opt-level        = "s"
+overflow-checks  = false
