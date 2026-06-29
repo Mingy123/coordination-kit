@@ -23,7 +23,6 @@ static const char *TAG = "speaker";
 #define SAMPLE_RATE  48000
 #define SINE_FREQ    440        /* A4 */
 #define AMPLITUDE    0.35       /* avoid clipping */
-#define DURATION_SEC 10
 #define SPEAKER_SD   40    /* MTDO */
 
 /* precompute a single period then loop it */
@@ -89,26 +88,15 @@ void speaker_task(void *arg)
         return;
     }
 
-    ESP_LOGI(TAG, "playing %d Hz sine @ %d Hz for %d s", SINE_FREQ, SAMPLE_RATE, DURATION_SEC);
+    ESP_LOGI(TAG, "playing %d Hz sine @ %d Hz — looping forever", SINE_FREQ, SAMPLE_RATE);
 
-    size_t total = SAMPLE_RATE * DURATION_SEC;
-    size_t written = 0;
     size_t bytes;
 
-    while (written < total) {
-        /* write one period at a time — repeats seamlessly */
+    while (1) {
         i2s_channel_write(tx_handle, sine_buf, sine_len * sizeof(int16_t), &bytes, portMAX_DELAY);
-        written += sine_len;
     }
 
-    ESP_LOGI(TAG, "done — muting");
-    gpio_set_level(SPEAKER_SD, 0);   /* SD# LOW = shutdown */
-
-    i2s_channel_disable(tx_handle);
-    i2s_del_channel(tx_handle);
-
-    free(sine_buf);
-    vTaskDelete(NULL);
+    /* unreachable */
 }
 
 void start_speaker(void)
