@@ -15,6 +15,7 @@
 #include "esp_log.h"
 #include "camera_pin.h"
 #include "speaker.h"
+#include "sd_card.h"
 #include "esp_camera.h"
 #include "usb_device_uvc.h"
 #include "uvc_frame_config.h"
@@ -210,6 +211,14 @@ void app_main(void)
     ESP_LOGI(TAG, "UVC device initialized — waiting for USB host");
 
     start_speaker();
+
+    ESP_LOGI(TAG, "formatting SD card...");
+    esp_err_t sdr = sd_format("/sdcard");
+    if (sdr == ESP_OK) {
+        ESP_LOGI(TAG, "SD card ready at /sdcard");
+    } else {
+        ESP_LOGW(TAG, "SD card init failed (%d) — insert/reformat", sdr);
+    }
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(100));
