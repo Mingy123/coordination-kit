@@ -1,0 +1,12 @@
+# Build artifacts
+build/
+sdkconfig
+sdkconfig.old
+
+# Component manager fetches these from the registry
+managed_components/
+
+# Editor temp files
+*.swp
+*.swo
+*~
