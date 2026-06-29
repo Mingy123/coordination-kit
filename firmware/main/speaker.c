@@ -4,8 +4,8 @@
  * DFR1154 wiring:
  *   BCLK  → GPIO45  (module pin 51)
  *   LRCLK → GPIO46  (module pin 52)
- *   DIN   → MTMS    (module pin 48) — GPIO14
- *   SD#   → MTDO    (module pin 46) — GPIO12
+ *   DIN   → MTMS    (module pin 48) — GPIO42
+ *   SD#   → MTDO    (module pin 46) — GPIO40
  *   GAIN  → MTDI    (module pin 47) — GPIO15, leave as-is
  */
 
@@ -24,7 +24,7 @@ static const char *TAG = "speaker";
 #define SINE_FREQ    440        /* A4 */
 #define AMPLITUDE    0.35       /* avoid clipping */
 #define DURATION_SEC 10
-#define SPEAKER_SD   12    /* MTDO */
+#define SPEAKER_SD   40    /* MTDO */
 
 /* precompute a single period then loop it */
 static int16_t *sine_buf;
@@ -59,7 +59,7 @@ static esp_err_t init_i2s(void)
             .mclk  = I2S_GPIO_UNUSED,
             .bclk  = GPIO_NUM_45,
             .ws    = GPIO_NUM_46,
-            .dout  = GPIO_NUM_14,      /* MTMS */
+            .dout  = GPIO_NUM_42,      /* MTMS */
             .din   = I2S_GPIO_UNUSED,
         },
     };
