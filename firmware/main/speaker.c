@@ -92,26 +92,27 @@ void beep_error(int freq_hz, int beeps)
 {
     gpio_reset_pin(SPEAKER_SD);
     gpio_set_direction(SPEAKER_SD, GPIO_MODE_OUTPUT);
-    gpio_set_level(SPEAKER_SD, 1);
+    gpio_set_level(SPEAKER_SD, 1);   // power amp once, leave it
 
     init_i2s();
 
     uint64_t step = (uint64_t)((double)freq_hz * 0x1p32 / (double)SAMPLE_RATE + 0.5);
-    int16_t buf[CHUNK_SAMPLES];
+    int16_t tone[CHUNK_SAMPLES];
+    int16_t zero[CHUNK_SAMPLES] = {0};
     size_t bytes;
 
     while (1) {
         for (int i = 0; i < beeps; i++) {
-            gpio_set_level(SPEAKER_SD, 1);       // on
             uint64_t ph = 0;
-            for (int j = 0; j < SAMPLE_RATE * 150 / 1000; j += CHUNK_SAMPLES) { // 150 ms
-                fill_sine(buf, CHUNK_SAMPLES, &ph, step);
-                i2s_channel_write(tx_handle, buf, sizeof(buf), &bytes, portMAX_DELAY);
+            for (int j = 0; j < SAMPLE_RATE * 150 / 1000; j += CHUNK_SAMPLES) {
+                fill_sine(tone, CHUNK_SAMPLES, &ph, step);
+                i2s_channel_write(tx_handle, tone, sizeof(tone), &bytes, portMAX_DELAY);
             }
-            gpio_set_level(SPEAKER_SD, 0);       // off
-            vTaskDelay(pdMS_TO_TICKS(100));
+            for (int j = 0; j < SAMPLE_RATE * 100 / 1000; j += CHUNK_SAMPLES) {
+                i2s_channel_write(tx_handle, zero, sizeof(zero), &bytes, portMAX_DELAY);
+            }
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));         // pause between blocks
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
