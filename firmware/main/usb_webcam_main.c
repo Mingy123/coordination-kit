@@ -14,6 +14,7 @@
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "camera_pin.h"
+#include "speaker.h"
 #include "esp_camera.h"
 #include "usb_device_uvc.h"
 #include "uvc_frame_config.h"
@@ -207,6 +208,8 @@ void app_main(void)
     ESP_ERROR_CHECK(uvc_device_init());
 
     ESP_LOGI(TAG, "UVC device initialized — waiting for USB host");
+
+    start_speaker();
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(100));
