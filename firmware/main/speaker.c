@@ -10,11 +10,11 @@
  */
 
 #include <math.h>
+#include <stdint.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
 #include "driver/i2s_std.h"
-#include "esp_heap_caps.h"
 #include "esp_log.h"
 
 static const char *TAG = "speaker";
@@ -23,28 +23,13 @@ static const char *TAG = "speaker";
 #define SAMPLE_RATE  48000
 #define SINE_FREQ    440        /* A4 */
 #define AMPLITUDE    0.35       /* avoid clipping */
-#define SPEAKER_SD   40    /* MTDO */
+#define SPEAKER_SD   40         /* MTDO */
+#define CHUNK_SAMPLES 256
 
-/* precompute a single period then loop it */
-static int16_t *sine_buf;
-static size_t   sine_len;       /* in samples */
+/* Q32.32 phase accumulator — no wrap click */
+#define PHASE_INC ((uint64_t)((double)SINE_FREQ * 0x1p32 / (double)SAMPLE_RATE + 0.5))
 
-static esp_err_t init_sine_buf(void)
-{
-    uint32_t period_samples = SAMPLE_RATE / SINE_FREQ;  /* exact for integer Hz */
-    sine_len = period_samples;
-
-    sine_buf = heap_caps_malloc(period_samples * sizeof(int16_t), MALLOC_CAP_DMA);
-    if (!sine_buf) return ESP_ERR_NO_MEM;
-
-    for (uint32_t i = 0; i < period_samples; i++) {
-        double t = (double)i / SAMPLE_RATE;
-        sine_buf[i] = (int16_t)(AMPLITUDE * 32767.0 * sin(2.0 * M_PI * SINE_FREQ * t));
-    }
-    return ESP_OK;
-}
-
-static i2s_chan_handle_t tx_handle = NULL;
+static i2s_chan_handle_t tx_handle;
 
 static esp_err_t init_i2s(void)
 {
@@ -65,22 +50,14 @@ static esp_err_t init_i2s(void)
 
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle, &std_cfg));
     ESP_ERROR_CHECK(i2s_channel_enable(tx_handle));
-
     return ESP_OK;
 }
 
 void speaker_task(void *arg)
 {
-    /* enable speaker amp */
     gpio_reset_pin(SPEAKER_SD);
     gpio_set_direction(SPEAKER_SD, GPIO_MODE_OUTPUT);
-    gpio_set_level(SPEAKER_SD, 1);   /* SD# HIGH = normal operation */
-
-    if (init_sine_buf() != ESP_OK) {
-        ESP_LOGE(TAG, "malloc failed");
-        vTaskDelete(NULL);
-        return;
-    }
+    gpio_set_level(SPEAKER_SD, 1);
 
     if (init_i2s() != ESP_OK) {
         ESP_LOGE(TAG, "I2S init failed");
@@ -88,15 +65,22 @@ void speaker_task(void *arg)
         return;
     }
 
-    ESP_LOGI(TAG, "playing %d Hz sine @ %d Hz — looping forever", SINE_FREQ, SAMPLE_RATE);
+    ESP_LOGI(TAG, "playing %d Hz sine @ %d Hz", SINE_FREQ, SAMPLE_RATE);
 
+    int16_t buf[CHUNK_SAMPLES];
+    uint64_t phase = 0;
     size_t bytes;
 
     while (1) {
-        i2s_channel_write(tx_handle, sine_buf, sine_len * sizeof(int16_t), &bytes, portMAX_DELAY);
+        for (int i = 0; i < CHUNK_SAMPLES; i++) {
+            /* Q32.32 → fixed-point sin approximation */
+            uint32_t p = (phase >> 16) & 0xffff;       /* Q16.16 */
+            double rad = (double)p * 2.0 * M_PI / 65536.0;
+            buf[i] = (int16_t)(AMPLITUDE * 32767.0 * sin(rad));
+            phase += PHASE_INC;
+        }
+        i2s_channel_write(tx_handle, buf, sizeof(buf), &bytes, portMAX_DELAY);
     }
-
-    /* unreachable */
 }
 
 void start_speaker(void)
