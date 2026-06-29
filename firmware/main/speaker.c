@@ -4,9 +4,9 @@
  * DFR1154 wiring:
  *   BCLK  → GPIO45  (module pin 51)
  *   LRCLK → GPIO46  (module pin 52)
- *   DIN   → MTMS    (module pin 48) — GPIO14 in IOMUX
- *   SD#   → MTDO    (module pin 46) — set HIGH to enable amp
- *   GAIN  → MTDI    (module pin 47) — leave as-is
+ *   DIN   → MTMS    (module pin 48) — GPIO14
+ *   SD#   → MTDO    (module pin 46) — GPIO12
+ *   GAIN  → MTDI    (module pin 47) — GPIO15, leave as-is
  */
 
 #include <math.h>
@@ -24,7 +24,7 @@ static const char *TAG = "speaker";
 #define SINE_FREQ    440        /* A4 */
 #define AMPLITUDE    0.35       /* avoid clipping */
 #define DURATION_SEC 10
-#define SPEAKER_SD   46
+#define SPEAKER_SD   12    /* MTDO */
 
 /* precompute a single period then loop it */
 static int16_t *sine_buf;
