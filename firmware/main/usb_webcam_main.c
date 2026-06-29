@@ -210,14 +210,24 @@ void app_main(void)
 
     ESP_LOGI(TAG, "UVC device initialized — waiting for USB host");
 
-    start_speaker();
-
     ESP_LOGI(TAG, "formatting SD card...");
     esp_err_t sdr = sd_format("/sdcard");
     if (sdr == ESP_OK) {
         ESP_LOGI(TAG, "SD card ready at /sdcard");
     } else {
-        ESP_LOGW(TAG, "SD card init failed (%d) — insert/reformat", sdr);
+        ESP_LOGW(TAG, "SD card init failed (%d)", sdr);
+        /* ponytail: beep-error table from speaker.c */
+        switch (sdr) {
+        case ESP_ERR_INVALID_ARG:
+        case ESP_ERR_INVALID_STATE:
+            beep_error(200, 3); break;  // bus / wiring
+        case ESP_ERR_NOT_FOUND:
+            beep_error(400, 2); break;  // no card
+        case ESP_FAIL:
+            beep_error(300, 4); break;  // format fail
+        default:
+            beep_error(500, 5); break;  // mount / unknown
+        }
     }
 
     while (1) {

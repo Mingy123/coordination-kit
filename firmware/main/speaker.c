@@ -26,9 +26,6 @@ static const char *TAG = "speaker";
 #define SPEAKER_SD   40         /* MTDO */
 #define CHUNK_SAMPLES 256
 
-/* Q32.32 phase accumulator — no wrap click */
-#define PHASE_INC ((uint64_t)((double)SINE_FREQ * 0x1p32 / (double)SAMPLE_RATE + 0.5))
-
 static i2s_chan_handle_t tx_handle;
 
 static esp_err_t init_i2s(void)
@@ -53,33 +50,68 @@ static esp_err_t init_i2s(void)
     return ESP_OK;
 }
 
+/* ponytail: shared sine fill, reused by speaker_task and beep_error */
+static void fill_sine(int16_t *buf, uint32_t n, uint64_t *phase, uint64_t step)
+{
+    for (uint32_t i = 0; i < n; i++) {
+        double rad = (double)((*phase >> 16) & 0xffff) * 2.0 * M_PI / 65536.0;
+        buf[i] = (int16_t)(AMPLITUDE * 32767.0 * sin(rad));
+        *phase += step;
+    }
+}
+
 void speaker_task(void *arg)
 {
     gpio_reset_pin(SPEAKER_SD);
     gpio_set_direction(SPEAKER_SD, GPIO_MODE_OUTPUT);
     gpio_set_level(SPEAKER_SD, 1);
 
-    if (init_i2s() != ESP_OK) {
-        ESP_LOGE(TAG, "I2S init failed");
-        vTaskDelete(NULL);
-        return;
-    }
-
-    ESP_LOGI(TAG, "playing %d Hz sine @ %d Hz", SINE_FREQ, SAMPLE_RATE);
+    init_i2s();
+    ESP_LOGI(TAG, "440 Hz loop");
 
     int16_t buf[CHUNK_SAMPLES];
     uint64_t phase = 0;
+    uint64_t step  = (uint64_t)((double)SINE_FREQ * 0x1p32 / (double)SAMPLE_RATE + 0.5);
     size_t bytes;
 
     while (1) {
-        for (int i = 0; i < CHUNK_SAMPLES; i++) {
-            /* Q32.32 → fixed-point sin approximation */
-            uint32_t p = (phase >> 16) & 0xffff;       /* Q16.16 */
-            double rad = (double)p * 2.0 * M_PI / 65536.0;
-            buf[i] = (int16_t)(AMPLITUDE * 32767.0 * sin(rad));
-            phase += PHASE_INC;
-        }
+        fill_sine(buf, CHUNK_SAMPLES, &phase, step);
         i2s_channel_write(tx_handle, buf, sizeof(buf), &bytes, portMAX_DELAY);
+    }
+}
+
+/*
+ * Error beep codes — called on boot failure, loops forever.
+ *
+ *  3 beeps × 200 Hz  — SPI bus init failed (wiring issue)
+ *  2 beeps × 400 Hz  — card not detected / init failed
+ *  4 beeps × 300 Hz  — format failed (write-protect / bad card)
+ *  5 beeps × 500 Hz  — mount failed after format
+ */
+void beep_error(int freq_hz, int beeps)
+{
+    gpio_reset_pin(SPEAKER_SD);
+    gpio_set_direction(SPEAKER_SD, GPIO_MODE_OUTPUT);
+    gpio_set_level(SPEAKER_SD, 1);
+
+    init_i2s();
+
+    uint64_t step = (uint64_t)((double)freq_hz * 0x1p32 / (double)SAMPLE_RATE + 0.5);
+    int16_t buf[CHUNK_SAMPLES];
+    size_t bytes;
+
+    while (1) {
+        for (int i = 0; i < beeps; i++) {
+            gpio_set_level(SPEAKER_SD, 1);       // on
+            uint64_t ph = 0;
+            for (int j = 0; j < SAMPLE_RATE * 150 / 1000; j += CHUNK_SAMPLES) { // 150 ms
+                fill_sine(buf, CHUNK_SAMPLES, &ph, step);
+                i2s_channel_write(tx_handle, buf, sizeof(buf), &bytes, portMAX_DELAY);
+            }
+            gpio_set_level(SPEAKER_SD, 0);       // off
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));         // pause between blocks
     }
 }
 
