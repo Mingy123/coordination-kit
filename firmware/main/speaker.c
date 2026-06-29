@@ -6,7 +6,7 @@
  *   LRCLK → GPIO46  (module pin 52)
  *   DIN   → MTMS    (module pin 48) — GPIO42
  *   SD#   → MTDO    (module pin 46) — GPIO40
- *   GAIN  → MTDI    (module pin 47) — GPIO15, leave as-is
+ *   GAIN  → MTDI    (module pin 47) — GPIO41, leave as-is
  */
 
 #include <math.h>
