@@ -5,7 +5,6 @@
  *   - esp-iot-solution/examples/usb/device/usb_webcam
  *   - DFR1154_ESP32-S3_AI_Camera_Component_Reference.md
  */
-
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
@@ -14,14 +13,9 @@
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "camera_pin.h"
-#include "speaker.h"
-#include "sd_card.h"
 #include "esp_camera.h"
 #include "usb_device_uvc.h"
 #include "uvc_frame_config.h"
-
-/* forward-declared in esp_now_bridge.c */
-void esp_now_bridge_start(void);
 
 static const char *TAG = "usb_webcam";
 
@@ -181,7 +175,7 @@ static void camera_fb_return_cb(uvc_fb_t *fb, void *cb_ctx)
     esp_camera_fb_return(s_fb.cam_fb_p);
 }
 
-void app_main(void)
+void usb_webcam_start(void)
 {
     ESP_LOGI(TAG, "Selected Camera Board %s", CAMERA_MODULE_NAME);
 
@@ -212,30 +206,4 @@ void app_main(void)
     ESP_ERROR_CHECK(uvc_device_init());
 
     ESP_LOGI(TAG, "UVC device initialized — waiting for USB host");
-
-    ESP_LOGI(TAG, "formatting SD card...");
-    esp_err_t sdr = sd_format("/sdcard");
-    if (sdr == ESP_OK) {
-        ESP_LOGI(TAG, "SD card ready at /sdcard");
-    } else {
-        ESP_LOGW(TAG, "SD card init failed (%d)", sdr);
-        /* ponytail: beep-error table from speaker.c */
-        switch (sdr) {
-        case ESP_ERR_INVALID_ARG:
-        case ESP_ERR_INVALID_STATE:
-            beep_error(200, 3); break;  // bus / wiring
-        case ESP_ERR_NOT_FOUND:
-            beep_error(400, 2); break;  // no card
-        case ESP_FAIL:
-            beep_error(300, 4); break;  // format fail
-        default:
-            beep_error(500, 5); break;  // mount / unknown
-
-    esp_now_bridge_start();
-        }
-    }
-
-    while (1) {
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
 }

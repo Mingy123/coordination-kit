@@ -1,6 +1,6 @@
 /*
  * C6 blink — minimal app_main for ESP32-C6 target.
- * Replaces usb_webcam_main.c when targeting C6 (no camera, no USB-OTG).
+ * Replaces main_s3.c when targeting C6 (no camera, no USB-OTG).
  */
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
