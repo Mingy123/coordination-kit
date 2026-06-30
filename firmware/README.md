@@ -1,6 +1,6 @@
 # DFR1154 Firmware — UVC Webcam + I2S Speaker
 
-ESP-IDF v5.4 firmware for the DFRobot DFR1154 ESP32-S3 AI Camera board.
+ESP-IDF v5.5.4 firmware for the DFRobot DFR1154 ESP32-S3 AI Camera board.
 Presents as a standard USB Video Class (UVC) webcam with an optional I2S
 speaker output (MAX98357A).
 
@@ -13,7 +13,7 @@ speaker output (MAX98357A).
 
 ## Requirements
 
-- ESP-IDF v5.4 ([install guide](https://docs.espressif.com/projects/esp-idf/en/v5.4/esp32s3/get-started/index.html))
+- ESP-IDF v5.5.4 ([install guide](https://docs.espressif.com/projects/esp-idf/en/v5.5/esp32s3/get-started/index.html))
 - DFR1154 ESP32-S3 AI Camera board (OV3660 sensor + 16 MB flash)
 - Optional: MAX98357A I2S speaker amp
 

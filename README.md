@@ -32,7 +32,7 @@ cd poc
 pip install -r requirements.txt
 python ui.py
 
-# Firmware — requires ESP-IDF v5.4
+# Firmware — requires ESP-IDF v5.5.4
 cd firmware
 source $HOME/esp/esp-idf/export.sh
 SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3" idf.py set-target esp32s3
