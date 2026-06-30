@@ -67,6 +67,14 @@ static void recv_cb(const esp_now_recv_info_t *info, const uint8_t *d, int len)
     if (xQueueSend(rxq, &p, 0) != pdTRUE) free(p);  /* queue full → drop */
 }
 
+/* ESP-NOW send callback — logs beacon broadcast status */
+static void send_cb(const uint8_t *mac, esp_now_send_status_t status)
+{
+    if (status != ESP_NOW_SEND_SUCCESS) {
+        ESP_LOGW(TAG, "beacon send failed for " MACSTR, MAC2STR(mac));
+    }
+}
+
 /* Drain queue → CDC */
 static void forward_task(void *arg)
 {
@@ -117,6 +125,17 @@ void esp_now_bridge_start(void)
     /* ESP-NOW */
     ESP_ERROR_CHECK(esp_now_init());
     ESP_ERROR_CHECK(esp_now_register_recv_cb(recv_cb));
+    ESP_ERROR_CHECK(esp_now_register_send_cb(send_cb));
+
+    /* Add broadcast peer for beacon sends */
+    esp_now_peer_info_t bc_peer = {
+        .channel  = ESPNOW_CHAN,
+        .ifidx    = ESP_IF_WIFI_STA,
+        .encrypt  = false,
+    };
+    memset(bc_peer.peer_addr, 0xFF, 6);
+    ESP_ERROR_CHECK(esp_now_add_peer(&bc_peer));
+
     ESP_ERROR_CHECK(esp_wifi_set_channel(ESPNOW_CHAN, WIFI_SECOND_CHAN_NONE));
 
     /* RX queue + tasks */
