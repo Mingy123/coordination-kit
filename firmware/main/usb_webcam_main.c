@@ -20,6 +20,9 @@
 #include "usb_device_uvc.h"
 #include "uvc_frame_config.h"
 
+/* forward-declared in esp_now_bridge.c */
+void esp_now_bridge_start(void);
+
 static const char *TAG = "usb_webcam";
 
 #define CAMERA_XCLK_FREQ           CONFIG_CAMERA_XCLK_FREQ
@@ -227,6 +230,8 @@ void app_main(void)
             beep_error(300, 4); break;  // format fail
         default:
             beep_error(500, 5); break;  // mount / unknown
+
+    esp_now_bridge_start();
         }
     }
 
