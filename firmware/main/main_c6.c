@@ -110,6 +110,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_wifi_init(&(wifi_init_config_t)WIFI_INIT_CONFIG_DEFAULT()));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
+    esp_wifi_set_ps(WIFI_PS_NONE);  /* ponytail: power save can suppress ESP-NOW ACK reception */
     ESP_ERROR_CHECK(esp_now_init());
 
     /* Stay on channel 1 where S3 broadcasts its beacon */
