@@ -144,6 +144,7 @@ void app_main(void)
 
         /* ---- Button poll: send on first edge, then ignore for DEBOUNCE_MS ---- */
         TickType_t now = xTaskGetTickCount();
+        esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);  /* ponytail: lock out AP-scan drift */
         int cur = gpio_get_level(BTN_GPIO);
 
         if (cur != last_raw && now >= ignore_until) {
