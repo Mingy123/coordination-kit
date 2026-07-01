@@ -88,6 +88,7 @@ static void recv_cb(const esp_now_recv_info_t *info, const uint8_t *data, int le
 static void send_cb(const wifi_tx_info_t *tx, esp_now_send_status_t status)
 {
     (void)tx;
+    ESP_LOGD(TAG, "send_cb status=%s", status == ESP_NOW_SEND_SUCCESS ? "OK" : "FAIL");
     if (status == ESP_NOW_SEND_SUCCESS) {
         tx_acked = true;
     }
@@ -144,7 +145,7 @@ void app_main(void)
 
         /* ---- Button poll: send on first edge, then ignore for DEBOUNCE_MS ---- */
         TickType_t now = xTaskGetTickCount();
-        esp_wifi_set_channel(1, WIFI_SECOND_CHAN_NONE);  /* ponytail: lock out AP-scan drift */
+        /* ponytail: channel re-clamp removed — didn't fix the fault */
         int cur = gpio_get_level(BTN_GPIO);
 
         if (cur != last_raw && now >= ignore_until) {
@@ -152,6 +153,7 @@ void app_main(void)
                 btn_evt_t evt = { .magic = "CKIT", .type = 0x02,
                                   .gpio = BTN_GPIO, .level = cur };
                 esp_err_t sr = esp_now_send(s3_addr, (const uint8_t *)&evt, sizeof(evt));
+                ESP_LOGI(TAG, "send to " MACSTR " ret=%d", MAC2STR(s3_addr), sr);
                 if (sr != ESP_OK) {
                     ESP_LOGW(TAG, "esp_now_send failed %d", sr);
                 }
