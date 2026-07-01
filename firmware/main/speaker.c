@@ -1,5 +1,5 @@
 /*
- * Sine wave playback on MAX98357A I2S speaker amp.
+ * Sine wave / error beep playback on MAX98357A I2S speaker amp.
  *
  * DFR1154 wiring:
  *   BCLK  → GPIO45  (module pin 51)
@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "driver/gpio.h"
 #include "driver/i2s_std.h"
 #include "esp_log.h"
@@ -25,8 +26,12 @@ static const char *TAG = "speaker";
 #define AMPLITUDE    0.35       /* avoid clipping */
 #define SPEAKER_SD   40         /* MTDO */
 #define CHUNK_SAMPLES 256
+#define BEEP_QLEN    4
 
 static i2s_chan_handle_t tx_handle;
+static QueueHandle_t beep_q;
+
+typedef struct { int freq; int count; } beep_req_t;
 
 static esp_err_t init_i2s(void)
 {
@@ -50,7 +55,7 @@ static esp_err_t init_i2s(void)
     return ESP_OK;
 }
 
-/* ponytail: shared sine fill, reused by speaker_task and beep_error */
+/* ponytail: shared sine fill */
 static void fill_sine(int16_t *buf, uint32_t n, uint64_t *phase, uint64_t step)
 {
     for (uint32_t i = 0; i < n; i++) {
@@ -60,89 +65,79 @@ static void fill_sine(int16_t *buf, uint32_t n, uint64_t *phase, uint64_t step)
     }
 }
 
-void speaker_task(void *arg)
+/* ponytail: non-blocking — drops if queue full (backlog > 4) */
+void request_beep(int freq_hz, int count)
 {
-    gpio_reset_pin(SPEAKER_SD);
-    gpio_set_direction(SPEAKER_SD, GPIO_MODE_OUTPUT);
-    gpio_set_level(SPEAKER_SD, 1);
-
-    init_i2s();
-    ESP_LOGI(TAG, "440 Hz loop");
-
-    int16_t buf[CHUNK_SAMPLES];
-    uint64_t phase = 0;
-    uint64_t step  = (uint64_t)((double)SINE_FREQ * 0x1p32 / (double)SAMPLE_RATE + 0.5);
-    size_t bytes;
-
-    while (1) {
-        fill_sine(buf, CHUNK_SAMPLES, &phase, step);
-        i2s_channel_write(tx_handle, buf, sizeof(buf), &bytes, portMAX_DELAY);
-    }
+    beep_req_t r = { .freq = freq_hz, .count = count };
+    xQueueSend(beep_q, &r, 0);
 }
 
-/*
- * Error beep codes — called on boot failure, loops forever.
- *
- *  3 beeps × 200 Hz  — SPI bus init failed (wiring issue)
- *  2 beeps × 400 Hz  — card not detected / init failed
- *  4 beeps × 300 Hz  — format failed (write-protect / bad card)
- *  5 beeps × 500 Hz  — mount failed after format
- */
-void beep_error(int freq_hz, int beeps)
+/* beep task — blocks on queue, I2S init once */
+static void beep_task(void *arg)
 {
-    /* ponytail: init I2S + prefill zeros before powering amp,
-       so MAX98357A sees a settled bus, not power-on garbage */
+    (void)arg;
+
     init_i2s();
+
+    /* prefill zeros before powering amp so MAX98357A sees settled bus */
     int16_t zero[CHUNK_SAMPLES] = {0};
     size_t bytes;
-    for (int j = 0; j < SAMPLE_RATE * 50 / 1000; j += CHUNK_SAMPLES) {
+    for (int j = 0; j < SAMPLE_RATE * 50 / 1000; j += CHUNK_SAMPLES)
         i2s_channel_write(tx_handle, zero, sizeof(zero), &bytes, portMAX_DELAY);
-    }
 
     gpio_reset_pin(SPEAKER_SD);
     gpio_set_direction(SPEAKER_SD, GPIO_MODE_OUTPUT);
     gpio_set_level(SPEAKER_SD, 1);
 
-    uint64_t step = (uint64_t)((double)freq_hz * 0x1p32 / (double)SAMPLE_RATE + 0.5);
     int16_t tone[CHUNK_SAMPLES];
+    beep_req_t r;
 
-    for (int i = 0; i < beeps; i++) {
-        /* ramp up over first 5 ms */
-        uint64_t ph = 0;
+    while (1) {
+        xQueueReceive(beep_q, &r, portMAX_DELAY);
+
+        uint64_t step = (uint64_t)((double)r.freq * 0x1p32 / (double)SAMPLE_RATE + 0.5);
         uint32_t ramp = SAMPLE_RATE * 5 / 1000;
-        for (uint32_t j = 0; j < ramp; j += CHUNK_SAMPLES) {
-            uint32_t n = CHUNK_SAMPLES;
-            if (j + n > ramp) n = ramp - j;
-            fill_sine(tone, n, &ph, step);
-            for (uint32_t k = 0; k < n; k++)
-                tone[k] = (int16_t)((double)tone[k] * (double)(j + k) / (double)ramp);
-            i2s_channel_write(tx_handle, tone, n * 2, &bytes, portMAX_DELAY);
-        }
 
-        /* sustained tone */
-        for (int j = 0; j < SAMPLE_RATE * 140 / 1000; j += CHUNK_SAMPLES) {
-            fill_sine(tone, CHUNK_SAMPLES, &ph, step);
-            i2s_channel_write(tx_handle, tone, sizeof(tone), &bytes, portMAX_DELAY);
-        }
+        for (int i = 0; i < r.count; i++) {
+            uint64_t ph = 0;
 
-        /* ramp down over last 5 ms */
-        for (uint32_t j = 0; j < ramp; j += CHUNK_SAMPLES) {
-            uint32_t n = CHUNK_SAMPLES;
-            if (j + n > ramp) n = ramp - j;
-            fill_sine(tone, n, &ph, step);
-            for (uint32_t k = 0; k < n; k++)
-                tone[k] = (int16_t)((double)tone[k] * (double)(ramp - j - k) / (double)ramp);
-            i2s_channel_write(tx_handle, tone, n * 2, &bytes, portMAX_DELAY);
-        }
+            /* ramp up */
+            for (uint32_t j = 0; j < ramp; j += CHUNK_SAMPLES) {
+                uint32_t n = CHUNK_SAMPLES;
+                if (j + n > ramp) n = ramp - j;
+                fill_sine(tone, n, &ph, step);
+                for (uint32_t k = 0; k < n; k++)
+                    tone[k] = (int16_t)((double)tone[k] * (double)(j + k) / (double)ramp);
+                i2s_channel_write(tx_handle, tone, n * 2, &bytes, portMAX_DELAY);
+            }
 
-        /* silence between beeps */
-        for (int j = 0; j < SAMPLE_RATE * 100 / 1000; j += CHUNK_SAMPLES) {
-            i2s_channel_write(tx_handle, zero, sizeof(zero), &bytes, portMAX_DELAY);
+            /* sustained */
+            for (int j = 0; j < SAMPLE_RATE * 140 / 1000; j += CHUNK_SAMPLES) {
+                fill_sine(tone, CHUNK_SAMPLES, &ph, step);
+                i2s_channel_write(tx_handle, tone, sizeof(tone), &bytes, portMAX_DELAY);
+            }
+
+            /* ramp down */
+            for (uint32_t j = 0; j < ramp; j += CHUNK_SAMPLES) {
+                uint32_t n = CHUNK_SAMPLES;
+                if (j + n > ramp) n = ramp - j;
+                fill_sine(tone, n, &ph, step);
+                for (uint32_t k = 0; k < n; k++)
+                    tone[k] = (int16_t)((double)tone[k] * (double)(ramp - j - k) / (double)ramp);
+                i2s_channel_write(tx_handle, tone, n * 2, &bytes, portMAX_DELAY);
+            }
+
+            /* silence between beeps */
+            for (int j = 0; j < SAMPLE_RATE * 100 / 1000; j += CHUNK_SAMPLES)
+                i2s_channel_write(tx_handle, zero, sizeof(zero), &bytes, portMAX_DELAY);
         }
     }
 }
 
+/* call once early in app_main */
 void start_speaker(void)
 {
-    xTaskCreate(speaker_task, "speaker", 4096, NULL, 5, NULL);
+    beep_q = xQueueCreate(BEEP_QLEN, sizeof(beep_req_t));
+    xTaskCreate(beep_task, "beep", 4096, NULL, 5, NULL);
+    ESP_LOGI(TAG, "started");
 }
