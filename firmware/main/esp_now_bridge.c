@@ -102,6 +102,8 @@ static void beacon_task(void *arg)
 
 void esp_now_bridge_start(void)
 {
+    ESP_LOGI(TAG, "starting");
+
     /* NVS (needed by WiFi) */
     esp_err_t r = nvs_flash_init();
     if (r == ESP_ERR_NVS_NO_FREE_PAGES || r == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -121,16 +123,20 @@ void esp_now_bridge_start(void)
     gpio_set_level(LED_GPIO, 0);
 
     /* WiFi station mode (no AP) — required by ESP-NOW */
+    ESP_LOGI(TAG, "wifi init");
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     ESP_ERROR_CHECK(esp_wifi_init(&(wifi_init_config_t)WIFI_INIT_CONFIG_DEFAULT()));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_LOGI(TAG, "wifi started");
 
     /* ESP-NOW */
+    ESP_LOGI(TAG, "esp-now init");
     ESP_ERROR_CHECK(esp_now_init());
     ESP_ERROR_CHECK(esp_now_register_recv_cb(recv_cb));
     ESP_ERROR_CHECK(esp_now_register_send_cb(send_cb));
+    ESP_LOGI(TAG, "esp-now registered");
 
     /* Add broadcast peer for beacon sends */
     esp_now_peer_info_t bc_peer = {
@@ -144,6 +150,7 @@ void esp_now_bridge_start(void)
     ESP_ERROR_CHECK(esp_wifi_set_channel(ESPNOW_CHAN, WIFI_SECOND_CHAN_NONE));
 
     /* RX queue + tasks */
+    ESP_LOGI(TAG, "spawning tasks");
     rxq = xQueueCreate(QLEN, sizeof(uint8_t*));
     xTaskCreate(beacon_task,  "beacon",  2048, NULL, 5, NULL);
     xTaskCreate(forward_task, "fwd",     3072, NULL, 5, NULL);
