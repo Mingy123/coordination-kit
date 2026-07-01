@@ -88,7 +88,7 @@ static void recv_cb(const esp_now_recv_info_t *info, const uint8_t *data, int le
 static void send_cb(const wifi_tx_info_t *tx, esp_now_send_status_t status)
 {
     (void)tx;
-    ESP_LOGD(TAG, "send_cb status=%s", status == ESP_NOW_SEND_SUCCESS ? "OK" : "FAIL");
+    ESP_LOGI(TAG, "send_cb status=%s", status == ESP_NOW_SEND_SUCCESS ? "OK" : "FAIL");
     if (status == ESP_NOW_SEND_SUCCESS) {
         tx_acked = true;
     }
