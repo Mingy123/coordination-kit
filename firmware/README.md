@@ -1,15 +1,19 @@
-# DFR1154 Firmware — UVC Webcam + I2S Speaker
+# DFR1154 Firmware — ESP-NOW Bridge + I2S Speaker
 
 ESP-IDF v5.5.4 firmware for the DFRobot DFR1154 ESP32-S3 AI Camera board.
-Presents as a standard USB Video Class (UVC) webcam with an optional I2S
-speaker output (MAX98357A).
+Runs an ESP-NOW bridge with an I2S speaker output (MAX98357A). USB
+console via native USB-Serial-JTAG (CDC-ACM).
 
 ## Features
 
-- **UVC webcam** — MJPEG video at 720p (default) over USB
+- **ESP-NOW bridge** — receives beacon packets from a C6 coordinator, sends ACKs
 - **I2S speaker** — 440 Hz sine wave tone on MAX98357A amp (via `start_speaker()`)
-- **Bootloader hook** — disables USB-Serial-JTAG D+ pullup so the UVC device
-  claims the USB data lines
+- **SD card** — formatted on boot for logging
+
+> Previous UVC webcam code is preserved at `main/usb_webcam.c` and
+> `main/camera_pin.h` but excluded from the build. Re-enable by adding
+> `usb_webcam.c` back to `main/CMakeLists.txt` and restoring camera
+> dependencies in `idf_component.yml`.
 
 ## Requirements
 
@@ -26,28 +30,19 @@ SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3" idf.py set-ta
 idf.py build flash monitor
 ```
 
-All dependencies (`esp32-camera`, `usb_device_uvc`, `tinyusb`, `cmake_utilities`)
-are fetched by the IDF component manager during the first build — no manual
-cloning.
-
 To target an ESP32-C6 instead:
 
 ```bash
 SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32c6" idf.py set-target esp32c6
 ```
 
-(Note: C6 lacks USB-OTG peripheral mode, so UVC is S3-only for now.)
-
 ## Flash
 
-Plug the board into USB. The bootloader hook disables the USB-Serial-JTAG
-interface so the UVC device appears on the host.
+Plug the board into USB. Console appears as `/dev/ttyACM0` via USB-Serial-JTAG (CDC-ACM).
 
 ```bash
 idf.py -p /dev/ttyACM0 flash monitor
 ```
-
-On the host, verify with `lsusb` — should show "Espressif ESP UVC Device".
 
 ## Wiring (DFR1154)
 
@@ -77,18 +72,7 @@ See `DFR1154_ESP32-S3_AI_Camera_Component_Reference.md` for full board docs.
 | SD#    | 40   | 46 (MTDO)  |
 | GAIN   | 41   | 47 (MTDI)  |
 
-## Configuration
-
-```bash
-idf.py menuconfig
-```
-
-- **USB WebCam config** → XCLK frequency (default 20 MHz)
-- **USB Device UVC** → resolution, frame rate, isochronous/bulk mode
-
 ## Notes
 
-- S3 only for UVC. C6 lacks USB-OTG peripheral mode.
-- MJPEG only (sensor JPEG compression required).
-- PSRAM must be present for camera frame buffers.
-- Console UART runs at 2 Mbaud to keep USB free for UVC.
+- S3 only. C6 lacks USB-OTG for future camera re-enable.
+- PSRAM still enabled in defaults (general-purpose, not camera-specific).

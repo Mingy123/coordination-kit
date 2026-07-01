@@ -8,7 +8,7 @@ Button / foot-switch → ESP32 → serial → LSL pipeline for real-time neurosc
 ┌─────────────┐     ┌─────────────────┐     ┌───────────────┐
 │  FTDI hand   │     │                 │     │               │
 │  buttons     │────▶│  ESP32-S3       │────▶│  bridge/      │────▶ LSL
-│  Keyboard    │     │  (UVC webcam +  │     │  serial_bridge│      outlet
+│  Keyboard    │     │  (ESP-NOW bdg + │     │  serial_bridge│      outlet
 │  foot switch │     │   I2S speaker)  │     │               │
 └─────────────┘     └─────────────────┘     └───────────────┘
        ▲                     ▲
@@ -21,7 +21,7 @@ Button / foot-switch → ESP32 → serial → LSL pipeline for real-time neurosc
 | Directory | Status | Description |
 |-----------|--------|-------------|
 | `poc/` | ✅ Working | Laptop proof-of-concept — Pygame UI reading two FTDI hand buttons + keyboard foot switches (2=left, 4=right) |
-| `firmware/` | ✅ Active | ESP-IDF v5.4 firmware for the DFR1154 ESP32-S3 AI Camera board. USB Video Class (UVC) webcam + I2S audio output (MAX98357A) |
+| `firmware/` | ✅ Active | ESP-IDF v5.5.4 firmware for the DFR1154 ESP32-S3 AI Camera board. ESP-NOW bridge + I2S audio output (MAX98357A) |
 | `bridge/` | ✅ Working | Python serial-to-LSL script — reads events from the ESP32 over UART and pushes them as an LSL string outlet |
 
 ## Quick start

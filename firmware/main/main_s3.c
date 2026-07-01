@@ -1,7 +1,7 @@
 /*
  * S3 main — DFRobot DFR1154 (ESP32-S3 + OV3660)
  *
- * Starts webcam, formats SD card, then launches ESP-NOW bridge.
+ * Formats SD card, then launches ESP-NOW bridge.
  */
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -11,15 +11,11 @@
 
 static const char *TAG = "s3_main";
 
-/* forward-declared in usb_webcam.c */
-void usb_webcam_start(void);
 /* forward-declared in esp_now_bridge.c */
 void esp_now_bridge_start(void);
 
 void app_main(void)
 {
-    usb_webcam_start();
-
     ESP_LOGI(TAG, "formatting SD card...");
     esp_err_t sdr = sd_format("/sdcard");
     if (sdr == ESP_OK) {
