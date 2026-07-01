@@ -1,8 +1,8 @@
 /*
- * ESP-NOW → USB CDC bridge for ESP32-S3.
+ * ESP-NOW → USB bridge for ESP32-S3.
  *
  * Receives ESP-NOW packets from C6 nodes, forwards them as
- * "MAC HEX data\n" lines over USB CDC ACM (composite with UVC).
+ * "MAC HEX data\n" lines over USB-Serial-JTAG console.
  *
  * ponytail: single file, no abstraction, no peer management, no encryption.
  * Upgrade: separate peer table if >20 nodes, binary framing if throughput matters.
@@ -17,7 +17,6 @@
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "nvs_flash.h"
-#include "tusb.h"
 
 static const char *TAG = "bridge";
 
@@ -31,27 +30,13 @@ static const char *TAG = "bridge";
 typedef struct __attribute__((packed)) { char m[4]; uint8_t t; } beacon_t;
 
 static QueueHandle_t rxq;
-static bool host_online;
 
-/* CDC write with blocking retry */
+/* Write to USB-Serial-JTAG console */
 static void cdc_write(const uint8_t *d, size_t n)
 {
-    if (!host_online) return;
-    /* ponytail: spins on full buffer, fine for low-rate sensor data */
-    for (size_t w = 0; w < n; ) {
-        size_t r = tud_cdc_n_write(0, d + w, n - w);
-        if (r > 0) { w += r; continue; }
-        tud_task();
-        vTaskDelay(1);
-    }
-    tud_cdc_n_write_flush(0);
-}
-
-/* CDC line-state callback — weak symbol, our def wins */
-void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
-{
-    (void)rts;
-    if (itf == 0) host_online = dtr;
+    /* ponytail: fwrite to stdout, buffered but fine for low-rate text data */
+    fwrite(d, 1, n, stdout);
+    fflush(stdout);
 }
 
 /* ESP-NOW receive callback */
@@ -68,10 +53,11 @@ static void recv_cb(const esp_now_recv_info_t *info, const uint8_t *d, int len)
 }
 
 /* ESP-NOW send callback — logs beacon broadcast status */
-static void send_cb(const uint8_t *mac, esp_now_send_status_t status)
+static void send_cb(const wifi_tx_info_t *tx, esp_now_send_status_t status)
 {
+    (void)tx;
     if (status != ESP_NOW_SEND_SUCCESS) {
-        ESP_LOGW(TAG, "beacon send failed for " MACSTR, MAC2STR(mac));
+        ESP_LOGW(TAG, "beacon send failed");
     }
 }
 
