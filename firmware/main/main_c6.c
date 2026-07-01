@@ -23,9 +23,9 @@ static const char *TAG = "c6";
 #define LED_GPIO      15
 #define BTN_GPIO      9
 
-/* ponytail: 30 ms debounce — 3 x 10 ms samples */
-#define POLL_MS       10
-#define DEBOUNCE      3
+/* ponytail: 2 ms poll, edge-trigger + 30 ms ignore window */
+#define POLL_MS       2
+#define DEBOUNCE_MS   30
 
 /* Beacon header (same layout as S3 bridge) */
 typedef struct __attribute__((packed)) {
@@ -124,9 +124,9 @@ void app_main(void)
     gpio_set_pull_mode(BTN_GPIO, GPIO_PULLUP_ONLY);
     gpio_set_level(LED_GPIO, 0);
 
-    /* Debounce state */
-    int last_stable = gpio_get_level(BTN_GPIO);
-    int stable_count = 0;
+    /* Button state: edge-trigger + ignore-after window */
+    int last_raw = gpio_get_level(BTN_GPIO);
+    TickType_t ignore_until = 0;
 
     ESP_LOGI(TAG, "started btn=GPIO%d led=GPIO%d", BTN_GPIO, LED_GPIO);
 
@@ -142,28 +142,24 @@ void app_main(void)
             led_off_tick = 0;
         }
 
-        /* ---- Button poll with debounce ---- */
+        /* ---- Button poll: send on first edge, then ignore for DEBOUNCE_MS ---- */
+        TickType_t now = xTaskGetTickCount();
         int cur = gpio_get_level(BTN_GPIO);
-        if (cur == last_stable) {
-            stable_count = 0;
-        } else {
-            stable_count++;
-            if (stable_count >= DEBOUNCE) {
-                /* Edge detected — send event via unicast to S3 */
-                if (s3_known) {
-                    btn_evt_t evt = { .magic = "CKIT", .type = 0x02,
-                                      .gpio = BTN_GPIO, .level = cur };
-                    esp_err_t sr = esp_now_send(s3_addr, (const uint8_t *)&evt, sizeof(evt));
-                    if (sr != ESP_OK) {
-                        ESP_LOGW(TAG, "esp_now_send failed %d", sr);
-                    }
+
+        if (cur != last_raw && now >= ignore_until) {
+            if (s3_known) {
+                btn_evt_t evt = { .magic = "CKIT", .type = 0x02,
+                                  .gpio = BTN_GPIO, .level = cur };
+                esp_err_t sr = esp_now_send(s3_addr, (const uint8_t *)&evt, sizeof(evt));
+                if (sr != ESP_OK) {
+                    ESP_LOGW(TAG, "esp_now_send failed %d", sr);
                 }
-                ESP_LOGI(TAG, "btn=%d gpio=%d%s", cur, BTN_GPIO,
-                         s3_known ? "" : " (no peer)");
-                last_stable = cur;
-                stable_count = 0;
             }
+            ESP_LOGI(TAG, "btn=%d gpio=%d%s", cur, BTN_GPIO,
+                     s3_known ? "" : " (no peer)");
+            ignore_until = now + pdMS_TO_TICKS(DEBOUNCE_MS);
         }
+        last_raw = cur;
 
         vTaskDelay(pdMS_TO_TICKS(POLL_MS));
     }
