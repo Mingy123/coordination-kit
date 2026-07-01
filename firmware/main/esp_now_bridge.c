@@ -33,6 +33,13 @@ static const char *TAG = "bridge";
 typedef struct __attribute__((packed)) { char m[4]; uint8_t t; } beacon_t;
 
 static QueueHandle_t rxq;
+static esp_timer_handle_t led_timer;
+
+static void led_off_cb(void *arg)
+{
+    (void)arg;
+    gpio_set_level(LED_GPIO, 0);
+}
 
 /* Write to USB-Serial-JTAG console */
 static void cdc_write(const uint8_t *d, size_t n)
@@ -59,12 +66,12 @@ static void recv_cb(const esp_now_recv_info_t *info, const uint8_t *d, int len)
 static void send_cb(const wifi_tx_info_t *tx, esp_now_send_status_t status)
 {
     (void)tx;
-    static bool led_on;
-    led_on = !led_on;
-    gpio_set_level(LED_GPIO, led_on);
     printf("BCN %lu %s\n", (unsigned long)(esp_timer_get_time() / 1000),
            status == ESP_NOW_SEND_SUCCESS ? "OK" : "FAIL");
-    if (status != ESP_NOW_SEND_SUCCESS) {
+    if (status == ESP_NOW_SEND_SUCCESS) {
+        gpio_set_level(LED_GPIO, 1);
+        esp_timer_start_once(led_timer, 100000); /* 100 ms */
+    } else {
         ESP_LOGW(TAG, "beacon send failed");
     }
 }
@@ -121,6 +128,10 @@ void esp_now_bridge_start(void)
     };
     gpio_config(&led_cfg);
     gpio_set_level(LED_GPIO, 0);
+
+    /* ponytail: one-shot timer for 100ms LED flash */
+    esp_timer_create_args_t ta = { .callback = led_off_cb };
+    esp_timer_create(&ta, &led_timer);
 
     /* WiFi station mode (no AP) — required by ESP-NOW */
     ESP_LOGI(TAG, "wifi init");
