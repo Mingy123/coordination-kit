@@ -106,42 +106,39 @@ void beep_error(int freq_hz, int beeps)
     uint64_t step = (uint64_t)((double)freq_hz * 0x1p32 / (double)SAMPLE_RATE + 0.5);
     int16_t tone[CHUNK_SAMPLES];
 
-    while (1) {
-        for (int i = 0; i < beeps; i++) {
-            /* ramp up over first 5 ms */
-            uint64_t ph = 0;
-            uint32_t ramp = SAMPLE_RATE * 5 / 1000;
-            for (uint32_t j = 0; j < ramp; j += CHUNK_SAMPLES) {
-                uint32_t n = CHUNK_SAMPLES;
-                if (j + n > ramp) n = ramp - j;
-                fill_sine(tone, n, &ph, step);
-                for (uint32_t k = 0; k < n; k++)
-                    tone[k] = (int16_t)((double)tone[k] * (double)(j + k) / (double)ramp);
-                i2s_channel_write(tx_handle, tone, n * 2, &bytes, portMAX_DELAY);
-            }
-
-            /* sustained tone */
-            for (int j = 0; j < SAMPLE_RATE * 140 / 1000; j += CHUNK_SAMPLES) {
-                fill_sine(tone, CHUNK_SAMPLES, &ph, step);
-                i2s_channel_write(tx_handle, tone, sizeof(tone), &bytes, portMAX_DELAY);
-            }
-
-            /* ramp down over last 5 ms */
-            for (uint32_t j = 0; j < ramp; j += CHUNK_SAMPLES) {
-                uint32_t n = CHUNK_SAMPLES;
-                if (j + n > ramp) n = ramp - j;
-                fill_sine(tone, n, &ph, step);
-                for (uint32_t k = 0; k < n; k++)
-                    tone[k] = (int16_t)((double)tone[k] * (double)(ramp - j - k) / (double)ramp);
-                i2s_channel_write(tx_handle, tone, n * 2, &bytes, portMAX_DELAY);
-            }
-
-            /* silence between beeps */
-            for (int j = 0; j < SAMPLE_RATE * 100 / 1000; j += CHUNK_SAMPLES) {
-                i2s_channel_write(tx_handle, zero, sizeof(zero), &bytes, portMAX_DELAY);
-            }
+    for (int i = 0; i < beeps; i++) {
+        /* ramp up over first 5 ms */
+        uint64_t ph = 0;
+        uint32_t ramp = SAMPLE_RATE * 5 / 1000;
+        for (uint32_t j = 0; j < ramp; j += CHUNK_SAMPLES) {
+            uint32_t n = CHUNK_SAMPLES;
+            if (j + n > ramp) n = ramp - j;
+            fill_sine(tone, n, &ph, step);
+            for (uint32_t k = 0; k < n; k++)
+                tone[k] = (int16_t)((double)tone[k] * (double)(j + k) / (double)ramp);
+            i2s_channel_write(tx_handle, tone, n * 2, &bytes, portMAX_DELAY);
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));
+
+        /* sustained tone */
+        for (int j = 0; j < SAMPLE_RATE * 140 / 1000; j += CHUNK_SAMPLES) {
+            fill_sine(tone, CHUNK_SAMPLES, &ph, step);
+            i2s_channel_write(tx_handle, tone, sizeof(tone), &bytes, portMAX_DELAY);
+        }
+
+        /* ramp down over last 5 ms */
+        for (uint32_t j = 0; j < ramp; j += CHUNK_SAMPLES) {
+            uint32_t n = CHUNK_SAMPLES;
+            if (j + n > ramp) n = ramp - j;
+            fill_sine(tone, n, &ph, step);
+            for (uint32_t k = 0; k < n; k++)
+                tone[k] = (int16_t)((double)tone[k] * (double)(ramp - j - k) / (double)ramp);
+            i2s_channel_write(tx_handle, tone, n * 2, &bytes, portMAX_DELAY);
+        }
+
+        /* silence between beeps */
+        for (int j = 0; j < SAMPLE_RATE * 100 / 1000; j += CHUNK_SAMPLES) {
+            i2s_channel_write(tx_handle, zero, sizeof(zero), &bytes, portMAX_DELAY);
+        }
     }
 }
 
