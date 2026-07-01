@@ -16,7 +16,9 @@
 #include "esp_now.h"
 #include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_timer.h"
 #include "nvs_flash.h"
+#include "driver/gpio.h"
 
 static const char *TAG = "bridge";
 
@@ -26,6 +28,7 @@ static const char *TAG = "bridge";
 #define QITEM           256
 #define BCN_MAGIC       "CKIT"
 #define BCN_TYPE        0x01
+#define LED_GPIO        GPIO_NUM_3
 
 typedef struct __attribute__((packed)) { char m[4]; uint8_t t; } beacon_t;
 
@@ -56,6 +59,11 @@ static void recv_cb(const esp_now_recv_info_t *info, const uint8_t *d, int len)
 static void send_cb(const wifi_tx_info_t *tx, esp_now_send_status_t status)
 {
     (void)tx;
+    static bool led_on;
+    led_on = !led_on;
+    gpio_set_level(LED_GPIO, led_on);
+    printf("BCN %lu %s\n", (unsigned long)(esp_timer_get_time() / 1000),
+           status == ESP_NOW_SEND_SUCCESS ? "OK" : "FAIL");
     if (status != ESP_NOW_SEND_SUCCESS) {
         ESP_LOGW(TAG, "beacon send failed");
     }
@@ -100,6 +108,17 @@ void esp_now_bridge_start(void)
         nvs_flash_erase();
         nvs_flash_init();
     }
+
+    /* Status LED */
+    gpio_config_t led_cfg = {
+        .pin_bit_mask = BIT64(LED_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_down_en = false,
+        .pull_up_en = false,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&led_cfg);
+    gpio_set_level(LED_GPIO, 0);
 
     /* WiFi station mode (no AP) — required by ESP-NOW */
     ESP_ERROR_CHECK(esp_netif_init());
