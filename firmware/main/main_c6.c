@@ -20,8 +20,7 @@
 
 static const char *TAG = "c6";
 
-/* ponytail: GPIO8 = built-in LED, GPIO9 = BOOT button on ESP32-C6-DevKitC-1 */
-#define LED_GPIO      8
+#define LED_GPIO      15
 #define BTN_GPIO      9
 
 /* ponytail: 30 ms debounce — 3 x 10 ms samples */
