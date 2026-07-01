@@ -13,6 +13,7 @@
 #include "freertos/task.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_wifi.h"
 #include "esp_now.h"
 #include "nvs_flash.h"
@@ -85,9 +86,9 @@ static void recv_cb(const esp_now_recv_info_t *info, const uint8_t *data, int le
 /* ---------------------------------------------------------------- */
 /* ESP-NOW send callback — blink LED on successful unicast delivery */
 /* ---------------------------------------------------------------- */
-static void send_cb(const uint8_t *mac, esp_now_send_status_t status)
+static void send_cb(const wifi_tx_info_t *tx, esp_now_send_status_t status)
 {
-    (void)mac;
+    (void)tx;
     if (status == ESP_NOW_SEND_SUCCESS) {
         tx_acked = true;
     }
