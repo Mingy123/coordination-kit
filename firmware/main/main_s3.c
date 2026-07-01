@@ -16,6 +16,8 @@ void esp_now_bridge_start(void);
 
 void app_main(void)
 {
+    esp_now_bridge_start();
+
     ESP_LOGI(TAG, "formatting SD card...");
     esp_err_t sdr = sd_format("/sdcard");
     if (sdr == ESP_OK) {
