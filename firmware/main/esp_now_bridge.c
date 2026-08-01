@@ -1,8 +1,8 @@
 /*
  * ESP-NOW → USB bridge for ESP32-S3.
  *
- * Receives ESP-NOW packets from C6 nodes, forwards them as
- * "MAC HEX data\n" lines over USB-Serial-JTAG console.
+ * Receives ESP-NOW packets from C6 nodes, forwards button events as
+ * "btn down/up <mac>" lines over USB-Serial-JTAG console.
  *
  * ponytail: single file, no abstraction, no peer management, no encryption.
  * Upgrade: separate peer table if >20 nodes, binary framing if throughput matters.
@@ -62,17 +62,13 @@ static void recv_cb(const esp_now_recv_info_t *info, const uint8_t *d, int len)
     if (xQueueSend(rxq, &p, 0) != pdTRUE) free(p);  /* queue full → drop */
 }
 
-/* ESP-NOW send callback — logs beacon broadcast status */
+/* ESP-NOW send callback — LED flash on beacon send success, no logs */
 static void send_cb(const wifi_tx_info_t *tx, esp_now_send_status_t status)
 {
     (void)tx;
-    printf("BCN %lu %s\n", (unsigned long)(esp_timer_get_time() / 1000),
-           status == ESP_NOW_SEND_SUCCESS ? "OK" : "FAIL");
     if (status == ESP_NOW_SEND_SUCCESS) {
         gpio_set_level(LED_GPIO, 1);
         esp_timer_start_once(led_timer, 100000); /* 100 ms */
-    } else {
-        ESP_LOGW(TAG, "beacon send failed");
     }
 }
 
@@ -81,15 +77,25 @@ static void forward_task(void *arg)
 {
     (void)arg;
     uint8_t *p;
-    char prefix[24];
+    char line[80];
     while (1) {
         if (xQueueReceive(rxq, &p, portMAX_DELAY) != pdTRUE) continue;
         int dlen = ((int)p[6] << 8) | p[7];
-        snprintf(prefix, sizeof(prefix), "%02x:%02x:%02x:%02x:%02x:%02x ",
+        char mac[18];
+        snprintf(mac, sizeof(mac), "%02x:%02x:%02x:%02x:%02x:%02x",
                  p[0],p[1],p[2],p[3],p[4],p[5]);
-        cdc_write((uint8_t*)prefix, strlen(prefix));
-        cdc_write(p + 8, dlen);
-        cdc_write((uint8_t*)"\n", 1);
+        /* btn_evt_t: magic[4]="CKIT" type=0x02 gpio level (7 bytes) */
+        if (dlen >= 7 && memcmp(p + 8, BCN_MAGIC, 4) == 0 && p[12] == 0x02) {
+            snprintf(line, sizeof(line), "btn %s %s\n",
+                     p[14] ? "down" : "up", mac);
+            cdc_write((uint8_t*)line, strlen(line));
+        } else {
+            /* ponytail: unknown packet → raw passthrough */
+            snprintf(line, sizeof(line), "%s ", mac);
+            cdc_write((uint8_t*)line, strlen(line));
+            cdc_write(p + 8, dlen);
+            cdc_write((uint8_t*)"\n", 1);
+        }
         free(p);
     }
 }
