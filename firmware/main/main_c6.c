@@ -7,6 +7,7 @@
  *
  * S3 bridge receives and forwards to PC over USB CDC.
  * On successful send, LED blinks 200 ms.
+ * On discovering/connecting to the S3, LED flashes 1 s.
  */
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -46,6 +47,7 @@ static bool    s3_known;
 
 /* LED blink state */
 static volatile bool     tx_acked;
+static volatile bool     pair_acked;    /* flash 1 s on S3 discovery */
 static volatile TickType_t led_off_tick;
 
 /* ------------------------------------------------------------------ */
@@ -76,6 +78,7 @@ static void recv_cb(const esp_now_recv_info_t *info, const uint8_t *data, int le
     esp_err_t r = esp_now_add_peer(&peer);
     if (r == ESP_OK) {
         s3_known = true;
+        pair_acked = true;                     /* flash LED 1 s */
         ESP_LOGI(TAG, "paired with " MACSTR, MAC2STR(s3_addr));
     } else {
         ESP_LOGE(TAG, "add_peer failed %d", r);
@@ -132,10 +135,12 @@ void app_main(void)
 
     while (1) {
         /* ---- LED management ---- */
-        if (tx_acked) {
+        if (tx_acked || pair_acked) {
             gpio_set_level(LED_GPIO, 1);
-            led_off_tick = xTaskGetTickCount() + pdMS_TO_TICKS(200);
+            led_off_tick = xTaskGetTickCount()
+                         + pdMS_TO_TICKS(pair_acked ? 1000 : 200);
             tx_acked = false;
+            pair_acked = false;
         }
         if (led_off_tick && xTaskGetTickCount() >= led_off_tick) {
             gpio_set_level(LED_GPIO, 0);
