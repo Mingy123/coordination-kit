@@ -16,6 +16,9 @@ target/
 *.elf
 *.hex
 
+# ESP-IDF build dirs
+build*/
+
 # OS
 .DS_Store
 Thumbs.db
