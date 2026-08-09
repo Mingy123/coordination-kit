@@ -28,21 +28,34 @@ switching between them is incremental (no full rebuild).
 
 ```bash
 cd firmware
-source $HOME/esp/esp-idf/export.sh
-
-# First time / fresh clone: create the per-target sdkconfig files
-idf.py -B build_s3 -DSDKCONFIG="$(pwd)/sdkconfig.esp32s3" set-target esp32s3
-idf.py -B build_c6 -DSDKCONFIG="$(pwd)/sdkconfig.esp32c6" set-target esp32c6
-
-# ESP32-S3 bridge (DFR1154)
-idf.py -B build_s3 build flash monitor
-
-# ESP32-C6 button sender
-idf.py -B build_c6 build flash monitor
+source $HOME/esp/esp-idf/export.sh   # activate ESP-IDF
 ```
 
-The `-DSDKCONFIG` only needs to be passed once per build dir (it's cached);
-after that plain `idf.py -B build_s3 build` works.
+### Fresh clone (one-time)
+
+`sdkconfig.esp32s3` / `sdkconfig.esp32c6` are gitignored, so a fresh clone has
+neither build dirs nor configs. Create them once per machine:
+
+```bash
+idf.py -B build_s3 -DSDKCONFIG="$(pwd)/sdkconfig.esp32s3" set-target esp32s3
+idf.py -B build_c6 -DSDKCONFIG="$(pwd)/sdkconfig.esp32c6" set-target esp32c6
+```
+
+Each command configures its build dir and writes its sdkconfig from the
+`sdkconfig.defaults` files. Re-run the relevant line only if you delete a
+build dir (`rm -rf build_s3`) — it's idempotent.
+
+### Every build after
+
+No `set-target`, no `SDKCONFIG` needed — both are cached in the build dirs:
+
+```bash
+idf.py -B build_s3 build        # ESP32-S3 bridge (DFR1154)
+idf.py -B build_c6 build        # ESP32-C6 button sender
+```
+
+Switching targets is incremental: each dir keeps its own objects, so a no-op
+build is ~1 s and real changes recompile only what's stale.
 
 ## Flash
 
@@ -50,6 +63,7 @@ Plug the board into USB. Console appears as `/dev/ttyACM0` via USB-Serial-JTAG (
 
 ```bash
 idf.py -B build_s3 -p /dev/ttyACM0 flash monitor
+idf.py -B build_c6 -p /dev/ttyACM0 flash monitor
 ```
 
 ## Wiring (DFR1154)
