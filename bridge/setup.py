@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Standalone button-mapping setup for the coordination kit.
+"""Standalone button-mapping setup/test for the coordination kit.
 
 Reads raw `btn <level> <mac>` events from the S3 bridge over serial,
-prompts the user to press each button once (press + release), and saves
-a MAC -> label map to button_map.json. No LSL dependency.
+prompts the user to press each button once (press + release), learns the
+MAC and pressed level for each, and saves a MAC -> label map to
+button_map.json. After calibrating, keeps printing mapped events so you
+can verify the setup live. No LSL dependency.
 
 Usage:
-  python3 setup.py                        # calibrate left_hand,right_foot
-  python3 setup.py --buttons "left_hand,right_foot,left_foot"
+  python3 setup.py                        # calibrate + live-print events
+  python3 setup.py --buttons "left_hand,right_foot"
   python3 setup.py --monitor              # just watch raw events
   python3 setup.py --selftest             # run logic self-check
 """
@@ -20,7 +22,7 @@ from pathlib import Path
 import serial
 
 MAP_PATH = Path(__file__).parent / "button_map.json"
-DEFAULT_BUTTONS = ["left_hand", "right_foot"]
+DEFAULT_BUTTONS = ["left_hand", "right_hand", "left_foot", "right_foot"]
 PROMPT_TIMEOUT_S = 20.0
 
 
@@ -65,6 +67,44 @@ def read_stroke(ser, timeout_s=PROMPT_TIMEOUT_S):
     return None
 
 
+def load_map(path: Path = MAP_PATH) -> dict:
+    """{mac: {label, pressed}} from button_map.json; {} if missing."""
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text())
+    return {b["mac"]: b for b in data["buttons"]}
+
+
+def event_marker(level: str, mac: str, mapping: dict):
+    """Normalized marker for a btn event; None if MAC unknown.
+
+    press -> "<label>", release -> "<label>_up", regardless of whether
+    the physical switch is active-low or active-high.
+    """
+    btn = mapping.get(mac)
+    if not btn:
+        return None
+    return btn["label"] if level == str(btn["pressed"]) else f"{btn['label']}_up"
+
+
+def print_live(ser, mapping):
+    """Print mapped events as they arrive until Ctrl-C."""
+    print("setup: watching mapped events (Ctrl-C to stop)", file=sys.stderr)
+    try:
+        while True:
+            line = ser.readline().decode("utf-8", errors="replace").strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) == 3 and parts[0] == "btn":
+                marker = event_marker(parts[1], parts[2], mapping)
+                print(marker if marker else line, flush=True)
+            else:
+                print(line, flush=True)
+    except KeyboardInterrupt:
+        print("\nsetup: done", file=sys.stderr)
+
+
 def selftest():
     assert parse_event("btn 0 aa:bb:cc:dd:ee:ff\n") == ("0", "aa:bb:cc:dd:ee:ff")
     assert parse_event("btn 1 aa:bb:cc:dd:ee:ff") == ("1", "aa:bb:cc:dd:ee:ff")
@@ -80,6 +120,14 @@ def selftest():
     assert pair_from_events([("0", "m1"), ("0", "m1"), ("1", "m1")]) == ("m1", "0", "1")
     # single event: no pair yet
     assert pair_from_events([("0", "m1")]) is None
+    # event markers: active-low (press=0) and active-high (press=1)
+    mapping = {"m1": {"label": "left_hand", "pressed": 0},
+               "m2": {"label": "right_foot", "pressed": 1}}
+    assert event_marker("0", "m1", mapping) == "left_hand"
+    assert event_marker("1", "m1", mapping) == "left_hand_up"
+    assert event_marker("1", "m2", mapping) == "right_foot"
+    assert event_marker("0", "m2", mapping) == "right_foot_up"
+    assert event_marker("1", "unknown", mapping) is None
     print("selftest: OK")
 
 
@@ -104,14 +152,10 @@ def main():
         print(f"setup: connected to {args.port} at {args.baud}", file=sys.stderr)
 
         if args.monitor:
-            print("monitor: watching events (Ctrl-C to stop)", file=sys.stderr)
-            while True:
-                line = ser.readline().decode("utf-8", errors="replace").strip()
-                if line:
-                    print(line, flush=True)
+            print_live(ser, mapping={})
             return
 
-        mapping = []
+        mapping_list = []
         for label in labels:
             print(f"\n>>> Press {label} now (press and release once)")
             stroke = read_stroke(ser)
@@ -119,13 +163,16 @@ def main():
                 print(f"setup: timed out waiting for {label}, aborting", file=sys.stderr)
                 sys.exit(1)
             mac, pressed, _released = stroke
-            mapping.append({"label": label, "mac": mac, "pressed": int(pressed)})
+            mapping_list.append({"label": label, "mac": mac, "pressed": int(pressed)})
 
-    MAP_PATH.write_text(json.dumps({"buttons": mapping}, indent=2) + "\n")
-    print(f"\nsetup: saved {len(mapping)} buttons to {MAP_PATH}")
-    for b in mapping:
-        print(f"  {b['label']}: mac={b['mac']} pressed={b['pressed']} "
-              f"(release={1 - b['pressed']})")
+        mapping = {b["mac"]: b for b in mapping_list}
+        MAP_PATH.write_text(json.dumps({"buttons": mapping_list}, indent=2) + "\n")
+        print(f"\nsetup: saved {len(mapping_list)} buttons to {MAP_PATH}")
+        for b in mapping_list:
+            print(f"  {b['label']}: mac={b['mac']} pressed={b['pressed']} "
+                  f"(release={1 - b['pressed']})")
+
+        print_live(ser, mapping)
 
 
 if __name__ == "__main__":

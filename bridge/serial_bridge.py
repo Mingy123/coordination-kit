@@ -2,34 +2,27 @@
 LSL string outlet.
 
 With a calibrated button_map.json (see setup.py), mapped buttons are
-normalized: press -> "<label>", release -> "<label>_up", regardless of
-whether the physical switch is active-low or active-high. Without a map,
-raw lines are forwarded as before.
+normalized via setup.event_marker: press -> "<label>", release ->
+"<label>_up", regardless of whether the physical switch is active-low or
+active-high. Without a map, raw lines are forwarded as before.
 """
 import argparse
-import json
 import sys
-from pathlib import Path
 
 import serial
 from pylsl import StreamInfo, StreamOutlet
 
-MAP_PATH = Path(__file__).parent / "button_map.json"
+from setup import MAP_PATH, load_map, event_marker
+
 STREAM_NAME = "CoordinationKit_Events"
-
-
-def load_map(path: Path = MAP_PATH) -> dict:
-    if not path.exists():
-        print(f"bridge: no map at {path}, raw passthrough mode", file=sys.stderr)
-        return {}
-    data = json.loads(path.read_text())
-    return {b["mac"]: b for b in data["buttons"]}
 
 
 def main(port: str = "/dev/ttyUSB0", baud: int = 115200):
     mapping = load_map()
     if mapping:
         print(f"bridge: loaded {len(mapping)} buttons from {MAP_PATH}", file=sys.stderr)
+    else:
+        print(f"bridge: no map at {MAP_PATH}, raw passthrough mode", file=sys.stderr)
 
     info = StreamInfo(STREAM_NAME, "Markers", 1, 0, "string", "coordbridge01")
     outlet = StreamOutlet(info)
@@ -43,11 +36,7 @@ def main(port: str = "/dev/ttyUSB0", baud: int = 115200):
             parts = line.split()
             marker = line
             if len(parts) == 3 and parts[0] == "btn":
-                level, mac = parts[1], parts[2]
-                btn = mapping.get(mac)
-                if btn:
-                    pressed = (level == str(btn["pressed"]))
-                    marker = btn["label"] if pressed else f"{btn['label']}_up"
+                marker = event_marker(parts[1], parts[2], mapping) or line
             outlet.push_sample([marker])
 
 
