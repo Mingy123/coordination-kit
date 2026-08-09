@@ -22,7 +22,7 @@
 static const char *TAG = "c6";
 
 #define LED_GPIO      15
-#define BTN_GPIO      9
+#define BTN_GPIO      17
 
 /* ponytail: 2 ms poll, edge-trigger + 30 ms ignore window */
 #define POLL_MS       2
