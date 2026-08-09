@@ -86,8 +86,8 @@ static void forward_task(void *arg)
                  p[0],p[1],p[2],p[3],p[4],p[5]);
         /* btn_evt_t: magic[4]="CKIT" type=0x02 gpio level (7 bytes) */
         if (dlen >= 7 && memcmp(p + 8, BCN_MAGIC, 4) == 0 && p[12] == 0x02) {
-            snprintf(line, sizeof(line), "btn %s %s\n",
-                     p[14] ? "down" : "up", mac);
+            snprintf(line, sizeof(line), "btn %d %s\n",
+                     p[14], mac);
             cdc_write((uint8_t*)line, strlen(line));
         } else {
             /* ponytail: unknown packet → raw passthrough */
