@@ -2,6 +2,8 @@
 build/
 sdkconfig
 sdkconfig.old
+sdkconfig.esp32*
+dependencies.lock
 
 # Component manager fetches these from the registry
 managed_components/

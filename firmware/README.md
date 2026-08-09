@@ -23,25 +23,33 @@ console via native USB-Serial-JTAG (CDC-ACM).
 
 ## Build
 
+Two targets share this project; each has its own build dir and sdkconfig so
+switching between them is incremental (no full rebuild).
+
 ```bash
 cd firmware
 source $HOME/esp/esp-idf/export.sh
-SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32s3" idf.py set-target esp32s3
-idf.py build flash monitor
+
+# First time / fresh clone: create the per-target sdkconfig files
+idf.py -B build_s3 -DSDKCONFIG="$(pwd)/sdkconfig.esp32s3" set-target esp32s3
+idf.py -B build_c6 -DSDKCONFIG="$(pwd)/sdkconfig.esp32c6" set-target esp32c6
+
+# ESP32-S3 bridge (DFR1154)
+idf.py -B build_s3 build flash monitor
+
+# ESP32-C6 button sender
+idf.py -B build_c6 build flash monitor
 ```
 
-To target an ESP32-C6 instead:
-
-```bash
-SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.esp32c6" idf.py set-target esp32c6
-```
+The `-DSDKCONFIG` only needs to be passed once per build dir (it's cached);
+after that plain `idf.py -B build_s3 build` works.
 
 ## Flash
 
 Plug the board into USB. Console appears as `/dev/ttyACM0` via USB-Serial-JTAG (CDC-ACM).
 
 ```bash
-idf.py -p /dev/ttyACM0 flash monitor
+idf.py -B build_s3 -p /dev/ttyACM0 flash monitor
 ```
 
 ## Wiring (DFR1154)
